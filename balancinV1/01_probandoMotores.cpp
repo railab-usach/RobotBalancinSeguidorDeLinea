@@ -50,10 +50,10 @@ void setup() {
 
 void loop() {
   //====================  MOTORES  ====================
-  //Avanzar a máxima velocidad Motor 1
-  motorA.setSpeed(255);
-  //Avanzar a máxima velocidad Motor 2
-  motorB.setSpeed(255);
+  //Avanzar Motor 1
+  motorA.setSpeed(100);
+  //Avanzar Motor 2
+  motorB.setSpeed(100);
   delay(3000);
 
   //Detenerse
@@ -61,10 +61,10 @@ void loop() {
   motorB.setSpeed(0);
   delay(3000);
 
-  //Retroceder a máxima velocidad Motor 1
-  motorA.setSpeed(-255);
-  //Retroceder a máxima velocidad Motor 2
-  motorB.setSpeed(-255);
+  //Retroceder Motor 1
+  motorA.setSpeed(-100);
+  //Retroceder Motor 2
+  motorB.setSpeed(-100);
 
   delay(3000);
 
