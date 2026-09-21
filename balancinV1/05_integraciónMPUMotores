@@ -118,7 +118,7 @@ void setup() {
   mpu.setZAccelOffset(1151);
 
   //====================  PID IMU  ====================
-  setpointIMU = 0.3;                       //Desfase IMU
+  setpointIMU = 0.6;                       //Desfase IMU
 }
 
 
