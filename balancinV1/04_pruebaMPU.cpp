@@ -6,7 +6,7 @@
 * OBSERVACIÓN: Recordar calibrar los offsets
 
 * ============== RESULTADO ====================
-* El MPU mide bien, pero el centro de gravedad está en: -1.06°
+* El MPU mide bien, pero el centro de gravedad está en: 0.6°
 */
 
 //######################################################################
@@ -47,7 +47,7 @@ MPU6050 mpu(0x68);      //Creamos una categoría tipo MPU6050 y agregamos un dis
 // Variables para almacenar datos crudos (16 bits)
 int16_t ax, ay, az;
 int16_t gx, gy, gz;
-
+float rollFiltrado = 0.0;
 
 //######################################################################
 //####################  CONFIGURACIONES INICIALES  #####################
@@ -84,18 +84,33 @@ void setup() {
 //######################################################################
 void loop() {
 
-  // Bucle de lectura a 100Hz (cada 10ms)
+  // Bucle de lectura a 200Hz (cada 5ms)
   static unsigned long tiempoAnterior = 0;
-  if (millis() - tiempoAnterior >= 10) {
-    tiempoAnterior = millis();
+  if (micros() - tiempoAnterior >= 5000) {
+
+    float dt = (micros() - tiempoAnterior) / 1000000; //Transformamos a segundos
+    tiempoAnterior = micros();
 
     // Obtención directa de los 6 datos crudos
     mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
 
-    // Imprimir datos en bruto
-    Serial.print("AccelRAW Z:"); Serial.print(az);
-    Serial.print(" | GyroRAW X:"); Serial.println(gx);
+    //Conversión de datos digitales a unidades fisicas
+    float giroX = gx/131.0;
+    float giroY = gy/131.0;
+    float giroZ = gz/131.0; //El 131 es el valor correspondiente a la resolución
+
+    //Mi balancín gira en el eje x. Por lo tanto, se mueve en el eje Y, Z (de forma lineal).
+    float anguloAcel = atan2(ay, az)*180/PI;
+    //No calculamos la aceleración en m/s^2 porque con la operación atan2 se cancelan las unidades.
+    /*
+    Si quisiese pasar los datos a aceleración lineal en m/s^2
+    float acelX = (ax/16384.0)* 9.80665;
+    */
+
+    rollFiltrado = 0.98 * (rollFiltrado + giroX * dt) + 0.02 * anguloAcel;
+    
+    //Imprimir ángulo:
+    Serial.print("Ángulo: ");
+    Serial.println(rollFiltrado);
   }
 }
-
-
