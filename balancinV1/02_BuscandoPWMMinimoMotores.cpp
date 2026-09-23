@@ -8,7 +8,8 @@
   en la variable pwmMinimo.
 
 * ============== RESULTADO ====================
-* Con un pwm de 17 recien empiezan a moverse ambos.
+* Con un pwm de 8 recien empieza a moverse el motor B.
+* El motor A con un PWM de 10.
 */
 
 //######################################################################
