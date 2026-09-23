@@ -3,6 +3,8 @@
   zona blanca marca alrededor de 2500 y en la zona negra 4000.
 */
 
+
+// =========== PINES ================
 int D1 = 36;
 int D2 = 39;
 int D3 = 34;
@@ -17,7 +19,7 @@ void setup() {
   Serial.begin(115200);
 }
 
-
+// ================= BUCLE PRINCIPAL
 void loop() {
   Serial.print(analogRead(D1));
   Serial.print(analogRead(D2));
