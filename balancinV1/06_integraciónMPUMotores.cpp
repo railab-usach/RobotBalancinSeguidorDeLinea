@@ -1,10 +1,11 @@
 /*
 * El siguiente código tiene como finalidad lograr que el balancin
   mantenga el equilibrio. No se busca necesariamente que sea extremadamente
-  estable, pues eso se hará más adelante al integrar los encoders.
+  estable, pues eso se hará más adelante al integrar encoders.
+* Los valores se van asignando por bluetooth con la app Serial bluetooth terminal
 
 * ================== RESULTADOS ======================
-* Sin resultados aún.
+* kp: 30, ki= 500, kd: 0.1
 
 * ================== METODOLOGIA ======================
 * 1. Iniciar con kp,ki,kd en 0
@@ -68,6 +69,12 @@ double kpIMU = 0, kiIMU = 0, kdIMU = 0;  //Parámetros IMU.
 
 int intervaloPIDIMU = 5000;  //5us: T=1/0.005s -> f = 200hz
 
+int minPWMA = 8;
+int minPWMB = 6;
+
+int pwmActualA = 0;
+int pwmActualB = 0;
+
 
 //######################################################################
 //############################  OBJETOS  ###############################
@@ -119,6 +126,19 @@ void setup() {
 
   //====================  PID IMU  ====================
   setpointIMU = 0.6;                       //Desfase IMU
+
+  //======== CÓDIGO DE ESTABILIZACIÓN ===================
+  delay(2000);
+
+  //Descartar las primeras lecturas basura
+  for(int i = 0; i < 20; i++){
+    mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+    delay(5);
+  }
+
+  //Pre-cargar el filtro complementario con el estado inicial real
+  mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+  rollFiltrado = atan2(ay, az) * 180 / PI;
 }
 
 
@@ -149,6 +169,12 @@ void loop() {
         else if(comandoBT.startsWith("setpoint:")) {
           setpointIMU = comandoBT.substring(9).toFloat();
         }
+        else if(comandoBT.startsWith("pwma:")) {
+          minPWMA = comandoBT.substring(5).toFloat();
+        }
+        else if(comandoBT.startsWith("pwmb:")) {
+          minPWMB = comandoBT.substring(5).toFloat();
+        }
       
         comandoBT = "";
       }
@@ -160,16 +186,19 @@ void loop() {
     }
   }
 
+
+  //====================  MPU6050  ====================
   // Bucle de lectura a 200Hz (cada 5ms)
-  static unsigned long tiempoAnterior = 0;
-  if (micros() - tiempoAnterior >= 5000) {
-    tiempoAnterior = micros();
-    float dt = (micros() - tiempoAnterior) / 1000000.0;
+  static unsigned long tiempoAnteriorPID = 0;
+  static unsigned long tiempoAnteriorDt = 0;
+  if (micros() - tiempoAnteriorPID >= 5000) {
+    tiempoAnteriorPID = micros();
+
     // Obtención directa de los 6 datos crudos
     mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
 
     //Conversión de datos digitales a unidades fisicas
-    float giroX = gx/131.0; //El 131 es el valor correspondiente a la resolución
+    float giroX = gx/131.0; //grados. El 131 es el valor correspondiente a la resolución
 
     //Mi balancín gira en el eje x. Por lo tanto, se mueve en el eje Y, Z (de forma lineal).
     float anguloAcel = atan2(ay, az)*180/PI;
@@ -187,8 +216,12 @@ void loop() {
 
     //Parte integral:
     static float errorSum = 0;
-    // Acumulación explícita multiplicada por el dt real
+    //Acumulación explícita multiplicada por el dt real
+    float dt = (micros() - tiempoAnteriorDt) / 1000000.0; //Transformación microsegundos a segundos
     errorSum += error * dt;
+    if(kiUMU == 0){
+      errorSum = 0; //Para evitar que el error se acumule antes de aplicar la parte integral
+    }
     // Anti-Windup: limita la acumulación integral para evitar saturación
     errorSum = constrain(errorSum, -50.0, 50.0); 
     float integral = kiIMU * errorSum;
@@ -204,6 +237,8 @@ void loop() {
       motorB.setSpeed(0);
       outputIMU = 0;          // Limpia la salida residual
       errorSum = 0; //Eliminar error
+      pwmActualA = 0;
+      pwmActualB = 0;
     } else {
       // Operación normal
         
@@ -213,18 +248,16 @@ void loop() {
 
 
       //Compensación de la zona muerta con el PWM mínimo útil.
-      
       float pwmUtilA = 0;
       float pwmUtilB = 0;
 
-      
-      int minPWM = 15;
       if (outputIMU > 0) {
-        pwmUtilA = map(outputIMU, 0, 255, minPWM, 255);
-        pwmUtilB = pwmUtilA;
+
+        pwmUtilA = map(outputIMU, 0,255, minPWMA, 255);
+        pwmUtilB = map(outputIMU, 0,255, minPWMB, 255);
       } else if (outputIMU < 0) {
-        pwmUtilA = map(outputIMU, 0, -255, -minPWM, -255);
-        pwmUtilB = pwmUtilA;
+        pwmUtilA = map(outputIMU, 0,-255, -minPWMA, -255);
+        pwmUtilB = map(outputIMU, 0,-255, -minPWMB, -255);
       }else{
         pwmUtilA = 0;
         pwmUtilB = 0;
@@ -233,9 +266,33 @@ void loop() {
       //Limitar los valores de la variable
       pwmUtilA = constrain(pwmUtilA, -255, 255);
       pwmUtilB = constrain(pwmUtilB, -255, 255);
-      
-      motorA.setSpeed(pwmUtilA);
-      motorB.setSpeed(pwmUtilB);
+
+      //Rampa de aceleración
+      int diferenciaA = pwmUtilA - pwmActualA;
+      int diferenciaB = pwmUtilB - pwmActualB;
+      int paso = 15;
+      if(diferenciaA > paso){
+        pwmActualA += paso;
+      }
+      else if(diferenciaA < -paso){
+        pwmActualA -= paso;
+      }
+      else{
+        pwmActualA = pwmUtilA;
+      }
+
+      if(diferenciaB > paso){
+        pwmActualB += paso;
+      }
+      else if(diferenciaB < -paso){
+        pwmActualB -= paso;
+      }
+      else{
+        pwmActualB = pwmUtilB;
+      }
+
+      motorA.setSpeed(pwmActualA);
+      motorB.setSpeed(pwmActualB);
     }
   }
 }
