@@ -6,6 +6,8 @@
 
 * ================== RESULTADOS ======================
 * kp: 30, ki= 500, kd: 0.1
+* Además, pwmMinimo A=8 y B=2 aseguró que el balancín no se desvíe hacía la izquierda
+  o derecha por diferencias entre motores.
 
 * ================== METODOLOGIA ======================
 * 1. Iniciar con kp,ki,kd en 0
@@ -70,7 +72,7 @@ double kpIMU = 0, kiIMU = 0, kdIMU = 0;  //Parámetros IMU.
 int intervaloPIDIMU = 5000;  //5us: T=1/0.005s -> f = 200hz
 
 int minPWMA = 8;
-int minPWMB = 6;
+int minPWMB = 2;
 
 int pwmActualA = 0;
 int pwmActualB = 0;
@@ -193,7 +195,7 @@ void loop() {
   if (micros() - tiempoAnteriorPID >= 5000) {
     tiempoAnteriorPID = micros();
 
-    float dt = 0.05;
+    float dt = 0.005;
     // Obtención directa de los 6 datos crudos
     mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
 
@@ -205,9 +207,8 @@ void loop() {
     //No calculamos la aceleración en m/s^2 porque con la operación atan2 se cancelan las unidades.
     rollFiltrado = 0.98 * (rollFiltrado + giroX * dt) + 0.02 * anguloAcel;
     //====================  MOTOR - PID - MPU6050  ====================
-      
-    inputIMU = rollFiltrado;    //Medición del angulo roll del MPU6050 para el PID.
 
+    inputIMU = rollFiltrado;    //Medición del angulo roll del MPU6050 para el PID.
     //Parte proporcional:
     float error = inputIMU - setpointIMU;
     float proporcional = kpIMU * error;
@@ -224,8 +225,7 @@ void loop() {
     float integral = kiIMU * errorSum;
 
     //Parte derivativa:
-    float derivativo = kdIMU * giroX;
-
+    float derivativo = kdIMU * giroX_suavizado;
 
     // ---- CORTE DE SEGURIDAD POR CAÍDA ----
     if (abs(rollFiltrado) > 40.0) { 
@@ -263,21 +263,21 @@ void loop() {
       //Limitar los valores de la variable
       pwmUtilA = constrain(pwmUtilA, -255, 255);
       pwmUtilB = constrain(pwmUtilB, -255, 255);
-
+      
       //Rampa de aceleración
       int diferenciaA = pwmUtilA - pwmActualA;
       int diferenciaB = pwmUtilB - pwmActualB;
       int pasoA = 25;  //25PWM/5ms = 5 PWM/ms
       int pasoB = 25;
       bool cambioDeSentidoA = (pwmUtilA > 0 && pwmActualA < 0) || (pwmUtilA < 0 && pwmActualA > 0);
-        if (cambioDeSentidoA) {
-          pasoA = 5; //Inversión: 5PWM/5ms = 1 PWM/ms
-        }
+      if (cambioDeSentidoA) {
+        pasoA = 5; //Inversión: 5PWM/5ms = 1 PWM/ms
+      }
 
       bool cambioDeSentidoB = (pwmUtilB > 0 && pwmActualB < 0) || (pwmUtilB < 0 && pwmActualB > 0);
-        if (cambioDeSentidoB) {
-          pasoB = 5; //Inversión: 5PWM/5ms = 1 PWM/ms
-        }
+      if (cambioDeSentidoB) {
+        pasoB = 5; //Inversión: 5PWM/5ms = 1 PWM/ms
+      }
 
       if(diferenciaA > pasoA){
         pwmActualA += pasoA;
