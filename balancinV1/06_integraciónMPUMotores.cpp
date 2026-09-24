@@ -190,10 +190,10 @@ void loop() {
   //====================  MPU6050  ====================
   // Bucle de lectura a 200Hz (cada 5ms)
   static unsigned long tiempoAnteriorPID = 0;
-  static unsigned long tiempoAnteriorDt = 0;
   if (micros() - tiempoAnteriorPID >= 5000) {
     tiempoAnteriorPID = micros();
 
+    float dt = 0.05;
     // Obtención directa de los 6 datos crudos
     mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
 
@@ -203,9 +203,7 @@ void loop() {
     //Mi balancín gira en el eje x. Por lo tanto, se mueve en el eje Y, Z (de forma lineal).
     float anguloAcel = atan2(ay, az)*180/PI;
     //No calculamos la aceleración en m/s^2 porque con la operación atan2 se cancelan las unidades.
-
     rollFiltrado = 0.98 * (rollFiltrado + giroX * dt) + 0.02 * anguloAcel;
-
     //====================  MOTOR - PID - MPU6050  ====================
       
     inputIMU = rollFiltrado;    //Medición del angulo roll del MPU6050 para el PID.
@@ -217,9 +215,8 @@ void loop() {
     //Parte integral:
     static float errorSum = 0;
     //Acumulación explícita multiplicada por el dt real
-    float dt = (micros() - tiempoAnteriorDt) / 1000000.0; //Transformación microsegundos a segundos
     errorSum += error * dt;
-    if(kiUMU == 0){
+    if(kiIMU == 0){
       errorSum = 0; //Para evitar que el error se acumule antes de aplicar la parte integral
     }
     // Anti-Windup: limita la acumulación integral para evitar saturación
@@ -270,22 +267,33 @@ void loop() {
       //Rampa de aceleración
       int diferenciaA = pwmUtilA - pwmActualA;
       int diferenciaB = pwmUtilB - pwmActualB;
-      int paso = 15;
-      if(diferenciaA > paso){
-        pwmActualA += paso;
+      int pasoA = 25;  //25PWM/5ms = 5 PWM/ms
+      int pasoB = 25;
+      bool cambioDeSentidoA = (pwmUtilA > 0 && pwmActualA < 0) || (pwmUtilA < 0 && pwmActualA > 0);
+        if (cambioDeSentidoA) {
+          pasoA = 5; //Inversión: 5PWM/5ms = 1 PWM/ms
+        }
+
+      bool cambioDeSentidoB = (pwmUtilB > 0 && pwmActualB < 0) || (pwmUtilB < 0 && pwmActualB > 0);
+        if (cambioDeSentidoB) {
+          pasoB = 5; //Inversión: 5PWM/5ms = 1 PWM/ms
+        }
+
+      if(diferenciaA > pasoA){
+        pwmActualA += pasoA;
       }
-      else if(diferenciaA < -paso){
-        pwmActualA -= paso;
+      else if(diferenciaA < -pasoA){
+        pwmActualA -= pasoA;
       }
       else{
         pwmActualA = pwmUtilA;
       }
 
-      if(diferenciaB > paso){
-        pwmActualB += paso;
+      if(diferenciaB > pasoB){
+        pwmActualB += pasoB;
       }
-      else if(diferenciaB < -paso){
-        pwmActualB -= paso;
+      else if(diferenciaB < -pasoB){
+        pwmActualB -= pasoB;
       }
       else{
         pwmActualB = pwmUtilB;
