@@ -12,7 +12,7 @@ int D4 = 35;
 int D5 = 32;
 int D6 = 33;
 int D7 = 25;
-int D8 = 36;
+int D8 = 26;
 
 // ----- CONFIG INICIAL -----//
 void setup() {
