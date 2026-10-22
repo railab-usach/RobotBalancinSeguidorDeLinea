@@ -76,29 +76,29 @@ void loop() {
   static unsigned long tiempoAnterior = 0;
   if(millis() - tiempoAnterior >= intervalo){
 
-  int diferencia = pwmObjetivo - pwmActual;
+    int diferencia = pwmObjetivo - pwmActual;
 
-  //CONTROL DEL PASO
-  //Aceleración: 100PWM/50ms = 2 PWM/ms
-  int paso = 100; // Permite cambios rápidos pero acota el pico extremo
+    //CONTROL DEL PASO
+    //Aceleración: 100PWM/50ms = 2 PWM/ms
+    int paso = 100; // Permite cambios rápidos pero acota el pico extremo
 
-  //Detecta si hay un cambio de sentido (inversión brusca de polaridad)
-  bool cambioDeSentido = (pwmObjetivo > 0 && pwmActual < 0) || (pwmObjetivo < 0 && pwmActual > 0);
-  if (cambioDeSentido) {
-    //Inversión: 2PWM/50ms = 0.04 PWM/ms
-    paso = 2; //Paso MUY lento para que se visualice bien
-  }
-
-  //ASIGNACIÓN DE PASO A LA SALIDA
-  if(diferencia > paso){
-      pwmActual += paso;
+    //Detecta si hay un cambio de sentido (inversión brusca de polaridad)
+    bool cambioDeSentido = (pwmObjetivo > 0 && pwmActual < 0) || (pwmObjetivo < 0 && pwmActual > 0);
+    if (cambioDeSentido) {
+      //Inversión: 2PWM/50ms = 0.04 PWM/ms
+      paso = 2; //Paso MUY lento para que se visualice bien
     }
+
+    //ASIGNACIÓN DE PASO A LA SALIDA
+    if(diferencia > paso){
+      pwmActual += paso;
+      }
     else if(diferencia < -paso){
       pwmActual -= paso;
-    }
+      }
     else{
       pwmActual = pwmObjetivo;
-    }
+      }
     pwmActual = constrain(pwmActual, -255, 255);
 
     //MOVER MOTOR
