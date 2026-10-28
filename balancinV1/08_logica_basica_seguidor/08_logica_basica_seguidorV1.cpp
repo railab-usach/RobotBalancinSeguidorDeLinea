@@ -9,7 +9,7 @@ int pinesInfrarrojo[8] = {36, 39, 34, 35, 32, 33, 25, 26};
 
 //========== VARIABLES GLOBALES ==========
 //Peso de la línea a seguir:
-int peso[8] = {-3,-2,-1,0,0,1,2,3};
+int peso[8] = {-5,-3,-1,0,0,1,3,5};
 
 //DECLARACION FUNCIONES
 int convertirAColor(int pinAnalogico);
@@ -23,11 +23,14 @@ void setup() {
 void loop() {
 
   int error = 0;
+  int cantLeidos = 0;
   for(int i=0; i<8; i++){
     //El error es un número que indica si la línea negra, sobre el fondo blanco
     //Está hacía la derecha o izquierda
-    error += convertirAColor(pinesInfrarrojo[i])* peso[i];
+    int posicion += convertirAColor(pinesInfrarrojo[i])* peso[i];
+    cantLeidos += convertirAColor(pinesInfrarrojo[i]);
   }
+  error = posicion/canLeidos;
   Serial.println(error);
   delay(200);
 }
