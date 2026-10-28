@@ -147,10 +147,18 @@ void setup() {
 void loop() {
   //====================  SENSOR DE LINEA  ====================
   int errorLinea = 0;
+  int cantLeidos = 0;
+  int posicion = 0;
   for(int i=0; i<8; i++){
     //El error es un número que indica si la línea negra, sobre el fondo blanco
     //Está hacía la derecha o izquierda
-    errorLinea += convertirAColor(pinesInfrarrojo[i])* peso[i];
+    posicion += convertirAColor(pinesInfrarrojo[i])* peso[i];
+    cantLeidos += convertirAColor(pinesInfrarrojo[i]);
+  }
+  if (cantLeidos != 0){
+    errorLinea = posicion/cantLeidos;
+  }else{
+    Serial.println("Detener motores");
   }
 
 
