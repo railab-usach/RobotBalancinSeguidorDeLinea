@@ -1,59 +1,47 @@
 /*
-* VERIFICACIÓN DE MOTORES:
-* El siguiente código es para verificar las conexiones de los motores
+*  FUNCIÓN: El siguiente código es para verificar las conexiones de los motores
   y el driver. Además de verificar el sentido de giro correcto.
-* Se ocupan las instrucciones básicas para verificar movimiento.
+  Se ocupan las instrucciones básicas para verificar movimiento.
 */
 
 //######################################################################
 //##########################  LIBRERIAS  ###############################
 //######################################################################
-
 //====================  MOTORES  ====================
 #include <CytronMotorDriver.h>
-
 
 //######################################################################
 //##############################  PINES  ###############################
 //######################################################################
-
 //====================  MOTORES  ====================
 //Motor A
 int M1A = 23;
 int M1B = 22;
-
 //Motor B
 int M2A = 19;
 int M2B = 21;
 
-
 //######################################################################
 //############################  OBJETOS  ###############################
 //######################################################################
-
 //====================  MOTORES  ====================
 CytronMD motorA(PWM_PWM, M1A, M1B);
 CytronMD motorB(PWM_PWM, M2A, M2B);
 
-
 //######################################################################
 //####################  CONFIGURACIONES INICIALES  #####################
 //######################################################################
-
 void setup() {
 }
-
 
 //######################################################################
 //#########################  BUCLE PRINCIPAL  ##########################
 //######################################################################
-
 void loop() {
   //====================  MOTORES  ====================
-  //Avanzar Motor 1
-  motorA.setSpeed(100);
-  //Avanzar Motor 2
-  motorB.setSpeed(100);
+  //Avanzar al 40% aprox
+  motorA.setSpeed(100); //Motor 1
+  motorB.setSpeed(100);  //Motor 2
   delay(3000);
 
   //Detenerse
@@ -61,11 +49,9 @@ void loop() {
   motorB.setSpeed(0);
   delay(3000);
 
-  //Retroceder Motor 1
-  motorA.setSpeed(-100);
-  //Retroceder Motor 2
-  motorB.setSpeed(-100);
-
+  //Retroceder
+  motorA.setSpeed(-100);  //Motor 1
+  motorB.setSpeed(-100);  //Motor 2
   delay(3000);
 
   //Acelerar
