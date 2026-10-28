@@ -8,6 +8,7 @@
 * kp: 30, ki= 500, kd: 0.5
 * Además, el limite del motor rápido, para asegurar que el balancin no gire
 * quedo en factor = 0.78
+* resultado: setpoint entre 3 y 4° y kl:10
 
 * ================== METODOLOGIA ======================
 * 1. Iniciar con kp,ki,kd en 0
