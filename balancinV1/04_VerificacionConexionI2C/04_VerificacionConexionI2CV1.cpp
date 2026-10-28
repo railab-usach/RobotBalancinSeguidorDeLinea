@@ -1,9 +1,8 @@
 /*
-* El siguiente código lee si es que hay conexiones I2C disponibles. Útil para
+* FUNCIÓN: El siguiente código lee si es que hay conexiones I2C disponibles. Útil para
   verificar si hay errores o no en la comunicación o conexión física.
-* Si hay dispositivos I2C conectados correctamente, se arrojará sus direcciones
+  Si hay dispositivos I2C conectados correctamente, se arrojará sus direcciones
   por el monitor serial, sino, dirá que no hay conexiones disponibles.
-
 * IMPORTANTE: Solo debes leer y configurar el apartado "PINES I2C" y
   "UNICA CONFIGURACIÓN A REALIZAR". Todo el resto del código puede ser
   ignorado y compilar directamente. 
@@ -13,12 +12,12 @@
 //###########################  PINES I2C  ##############################
 //######################################################################
 //  Si ocupas una ESP32 y quieres definir como pines I2C otros que no son
-//  los que vienen configurados por defecto las siguientes dos variables
-//  deben estar descomentadas y debes escribir el número de pin.
+//  los que vienen configurados por defecto, las variables pinSDA y pin SCL
+//  deben estar descomentadas.
 #include <Wire.h>
 
-int pinSDA = 16;
-int pinSCL = 17;
+int pinSDA = 16;  //Nuevo pin para SDA I2C
+int pinSCL = 17;  //Nuevo pin para SCL I2C
 
 void setup() {
   //######################################################################
@@ -31,7 +30,7 @@ void setup() {
   //Wire.begin(); //Comentar
   Wire.begin(pinSDA, pinSCL); //Descomentar
 
-  //  Si ocupas un arduino deja este valor por defecto. Si ocupas una ESP32
+  //  Si ocupas un arduino deja este valor en 9600. Si ocupas una ESP32
   //  es recomendable cambiarlo a 115200
   Serial.begin(115200);
 
