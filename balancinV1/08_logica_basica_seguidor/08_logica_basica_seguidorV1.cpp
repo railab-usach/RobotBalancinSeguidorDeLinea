@@ -24,13 +24,19 @@ void loop() {
 
   int error = 0;
   int cantLeidos = 0;
+  int posicion = 0;
   for(int i=0; i<8; i++){
     //El error es un número que indica si la línea negra, sobre el fondo blanco
     //Está hacía la derecha o izquierda
-    int posicion += convertirAColor(pinesInfrarrojo[i])* peso[i];
+    posicion += convertirAColor(pinesInfrarrojo[i])* peso[i];
     cantLeidos += convertirAColor(pinesInfrarrojo[i]);
   }
-  error = posicion/canLeidos;
+  if (cantLeidos != 0){
+    error = posicion/cantLeidos;
+  }else{
+    Serial.println("Detener motores");
+  }
+  
   Serial.println(error);
   delay(200);
 }
