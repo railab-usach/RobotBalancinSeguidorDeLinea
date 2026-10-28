@@ -1,10 +1,13 @@
-/*  
-* El sensor de línea es analógico. Tras unas pruebas, la
+/*
+*  FUNCION: El siguiente código es para verificar las conexiones y la
+  normal lectura del sensor.
+*  NOTA:  El sensor de línea es analógico. Tras unas pruebas, la
   zona blanca marca alrededor de 2500 y en la zona negra 4000.
 */
 
-
-// =========== PINES ================
+//######################################################################
+//##############################  PINES  ###############################
+//######################################################################
 int D1 = 36;
 int D2 = 39;
 int D3 = 34;
@@ -14,13 +17,18 @@ int D6 = 33;
 int D7 = 25;
 int D8 = 26;
 
-// ----- CONFIG INICIAL -----//
+//######################################################################
+//####################  CONFIGURACIONES INICIALES  #####################
+//######################################################################
 void setup() {
   Serial.begin(115200);
 }
 
-// ================= BUCLE PRINCIPAL
+//######################################################################
+//#########################  BUCLE PRINCIPAL  ##########################
+//######################################################################
 void loop() {
+  //Lectura de cada pin de datos del sensor
   Serial.print(analogRead(D1));
   Serial.print(analogRead(D2));
   Serial.print(analogRead(D3));
