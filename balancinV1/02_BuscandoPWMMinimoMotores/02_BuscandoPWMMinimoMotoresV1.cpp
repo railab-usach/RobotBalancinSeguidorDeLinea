@@ -1,15 +1,15 @@
 /*
-* El siguiente código es para encontrar el PWM mínimo con el cual los
+* FUNCIÓN: El siguiente código es para encontrar el PWM mínimo con el cual los
   motores RECIEN empiezan a girar mínimamente (en la aire).
-* Iremos ingresando diferentes PWM mediante el monitor Serial para
-* aligerar la búsqueda.
-* OBSERVACIÓN En el monitor serial, al lado de la velocidad,  hay que 
-  configurar la opción "Sin ajuste de línea" para que no se guarde basura
-  en la variable pwmMinimo.
+* PROCEDIMIENTO: Iremos ingresando diferentes PWM mediante el monitor Serial
+  para aligerar la búsqueda.
+* NOTA: En el monitor serial, al lado de la velocidad,  hay que 
+  configurar la opción "Sin ajuste de línea". Si no se hace esto, se guardará
+  basura en la variable pwmMinimo.
 
-* ============== RESULTADO ====================
-* Con un pwm de 8 recien empieza a moverse el motor B.
-* El motor A con un PWM de 10.
+* ==================== RESULTADO ====================
+* MOTOR A: Con un pwm de 10 recién empieza a moverse.
+*  MOTOR B: Con un pwm de 8 recien empieza a moverse.
 */
 
 //######################################################################
