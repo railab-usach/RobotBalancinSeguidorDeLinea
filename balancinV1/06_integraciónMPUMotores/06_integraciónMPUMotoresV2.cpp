@@ -137,7 +137,6 @@ void loop() {
   int intervaloPIDIMU = 5000;  //5microseg: T=1/0.005s -> f = 200hz
   if (micros() - tiempoAnteriorPID >= intervaloPIDIMU) {
     tiempoAnteriorPID = micros();
-
     
     //====================  SENSADO  ====================
     //Obtención directa de los 6 datos crudos
@@ -156,7 +155,6 @@ void loop() {
     float dt = 0.005;
     static float rollFiltrado = 0.0;
     rollFiltrado = 0.98 * (rollFiltrado + giroX * dt) + 0.02 * anguloAcel;
-
 
     //====================  LÓGICA DE CONTROL  ====================
     double inputIMU = rollFiltrado;    //Medición del angulo roll del MPU6050 para el PID.
@@ -193,7 +191,6 @@ void loop() {
       double outputIMU = proporcional + integral + derivativo;
       // 2. Acotación de la salida
       outputIMU = constrain(outputIMU, -255.0, 255.0);
-
 
       //====================  ACTUACION  ====================
       //Compensación de la zona muerta con el PWM mínimo útil.
