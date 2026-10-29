@@ -1,29 +1,23 @@
 /*
-* El siguiente código tiene como finalidad lograr que el balancin
-  mantenga el equilibrio. No se busca necesariamente que sea extremadamente
-  estable, pues eso se hará más adelante al integrar encoders.
-* Los valores se van asignando por bluetooth con la app Serial bluetooth terminal
+* FUNCIÓN: El siguiente código es para calibrar con cuenta fuerza se corrije la posición
+  del balancín al leer la línea.
+*  PROCEDIMIENTO: Se tiene que generar un setpoint un poquito más alto que el setpoint de equilibrio,
+  esto con la finalidad de que el balancín avance. Posterior a esto, se tiene que asignar valores al
+  "factor de linea". Este número indica con cuanta fuerza se gira a la derecha o izquierda para seguir
+  la linea.
+  Los valores se van asignando por bluetooth con la app Serial bluetooth terminal. Dentro del loop está
+  el bloque perteneciente al bluetooth con 2 comandos (setpoint y kl).
 
 * ================== RESULTADOS ======================
-* kp: 30, ki= 500, kd: 0.5
-* Además, el limite del motor rápido, para asegurar que el balancin no gire
-* quedo en factor = 0.78
-* resultado: setpoint entre 3 y 4° y kl:10
-
-* ================== METODOLOGIA ======================
-* 1. Iniciar con kp,ki,kd en 0
-* 2. Subir kp hasta llega a un valor donde el balancin trate de mantenerse en equilibrio 
-    oscile 1 o 2 veces y se caiga. (el balanceo debe ser muy leve. Si se inclina más de 5° se caerá)
-* 3. Subir kd de a poco hasta que el balancín deje de oscilar
-* 4. El balancín se seguirá cayendo. Aumentar ki con el valor necesario hasta
-    que deje de caerse y soporte empujones.
+*  Con un setpoint de entre 3.5° y 4° el balancín avanza de forma relativamente controlada.
+*  Con un factor de linea igual a 10 el balancín tiene la suficiente fuerza para seguir la línea,
+  pero sin girar en exceso para salirse del camino.
 */
 
 
 //######################################################################
 //############################  LIBRERIAS  #############################
 //######################################################################
-
 //====================  I2C  ====================
 #include "Wire.h"                           //Libreria para activar comunicación I2C.
 #include "I2Cdev.h"                         //Libreria auxiliar para más comandos con I2C.
@@ -37,16 +31,13 @@
 //====================  BLUETOOTH  ====================
 #include "BluetoothSerial.h"
 
-
 //######################################################################
 //##############################  PINES  ###############################
 //######################################################################
-
 //====================  MOTORES  ====================
 //Motor A
 int M1A = 23;
 int M1B = 22;
-
 //Motor B
 int M2A = 19;
 int M2B = 21;
@@ -58,11 +49,9 @@ int pinSCL = 17;
 //====================  SENSOR INFRARROJO  ====================
 int pinesInfrarrojo[8] = {36, 39, 34, 35, 32, 33, 25, 26};
 
-
 //######################################################################
 //######################  VARIABLES GLOBALES  ##########################
 //######################################################################
-
 //====================  PID MOTOR - MPU6050  ====================
 double setpointIMU = 2.6;    //Desfase IMU
 
@@ -75,7 +64,6 @@ int peso[8] = {-5,-3,-1,0,0,1,3,5};
 //######################################################################
 //############################  OBJETOS  ###############################
 //######################################################################
-
 //====================  MPU6050  ====================
 MPU6050 mpu(0x68);      //Creamos una categoría tipo MPU6050 y agregamos un dispositivo llamado mpu.
                         //El parámetro es su dirección I2C.
@@ -87,14 +75,14 @@ CytronMD motorB(PWM_PWM, M2A, M2B);
 //====================  BLUETOOTH  ====================
 BluetoothSerial SerialBT;
 
-
 //######################################################################
 //####################  DECLARACION FUNCIONES  #########################
 //######################################################################
+//====================  MOTORES  ====================
 int rampaPWM(int &pwmActual, int &pwmObjetivo, int paso);
 
+//====================  SENSOR INFRARROJO  ====================
 int convertirAColor(int pinAnalogico);
-
 
 //######################################################################
 //####################  CONFIGURACIONES INICIALES  #####################
@@ -105,7 +93,6 @@ void setup() {
   Wire.begin(pinSDA, pinSCL);               //Inicia el I2C.
   Wire.setClock(400000);
 
-  Serial.begin(115200);
   //====================  BLUETOOTH  ====================
   SerialBT.begin("MiBalancin"); //Nombre de nuestro dispositivo bluetooth
 
@@ -127,7 +114,6 @@ void setup() {
   mpu.setYAccelOffset(215);
   mpu.setZAccelOffset(1151);
 
-
   //======== CÓDIGO DE ESTABILIZACIÓN ===================
   delay(2000);
 
@@ -140,35 +126,31 @@ void setup() {
   }
 }
 
-
 //######################################################################
 //#########################  BUCLE PRINCIPAL  ##########################
 //######################################################################
 void loop() {
   //====================  SENSOR DE LINEA  ====================
-  int errorLinea = 0;
-  int cantLeidos = 0;
-  int posicion = 0;
+  int errorLinea, cantLeidos, posicion = 0;
   for(int i=0; i<8; i++){
-    //El error es un número que indica si la línea negra, sobre el fondo blanco
-    //Está hacía la derecha o izquierda
     posicion += convertirAColor(pinesInfrarrojo[i])* peso[i];
     cantLeidos += convertirAColor(pinesInfrarrojo[i]);
   }
   if (cantLeidos != 0){
+    //El error es un número que indica si la línea está hacía la derecha o izquierda
     errorLinea = posicion/cantLeidos;
   }else{
     Serial.println("Detener motores");
   }
 
-
-  //====================  MPU6050  ====================
+  //====================  SISTEMA DE CONTROL 1  ====================
   // Bucle de lectura a 200Hz (cada 5ms)
   static unsigned long tiempoAnteriorPID = 0;
   int intervaloPIDIMU = 5000;  //5microseg: T=1/0.005s -> f = 200hz
   if (micros() - tiempoAnteriorPID >= intervaloPIDIMU) {
     tiempoAnteriorPID = micros();
 
+    //====================  SENSADO  ====================
     //Obtención directa de los 6 datos crudos
     int16_t ax, ay, az;
     int16_t gx, gy, gz;
@@ -186,8 +168,7 @@ void loop() {
     static float rollFiltrado = 0.0;
     rollFiltrado = 0.98 * (rollFiltrado + giroX * dt) + 0.02 * anguloAcel;
 
-
-    //====================  PID MOTOR - MPU6050  ====================
+    //====================  LÓGICA DE CONTROL 1: IMU-MOTOR ====================
     double inputIMU = rollFiltrado;    //Medición del angulo roll del MPU6050 para el PID.
 
 
@@ -218,12 +199,8 @@ void loop() {
      // ---- CORTE DE SEGURIDAD POR CAÍDA ----
     if (abs(rollFiltrado) > 40.0) { 
       // Si el robot cae más de 40 grados, apaga todo
-      motorA.setSpeed(0);
-      motorB.setSpeed(0);
       double outputIMU = 0;          // Limpia la salida residual
       errorSum = 0; //Eliminar error
-      int pwmActualA = 0;
-      int pwmActualB = 0;
     } else {
       // Operación normal
         
@@ -231,7 +208,7 @@ void loop() {
       // 2. Acotación de la salida
       outputIMU = constrain(outputIMU, -255.0, 255.0);
 
-
+      //====================  ACTUACION  ====================
       //Compensación de la zona muerta con el PWM mínimo útil.
       int minPWMA = 10;
       int minPWMB = 8;
@@ -240,6 +217,7 @@ void loop() {
       float factorMotorB = 0.78; //Motor que gira más rápido
 
       if (outputIMU > 0) {
+        //Reescalado de la zona muerta
         pwmUtilA = map(outputIMU, 1,255, minPWMA, 255);
         pwmUtilB = map(outputIMU, 1,255, minPWMB, 255) * factorMotorB;
       } else if (outputIMU < 0) {
@@ -263,7 +241,7 @@ void loop() {
       pwmActualA = rampaPWM(pwmActualA, pwmObjetivoA, paso);
       pwmActualB = rampaPWM(pwmActualB, pwmObjetivoB, paso);
 
-
+      //Corrección para seguir la línea
       if (outputIMU > 0) {
         motorA.setSpeed(pwmActualA + errorLinea * factorLinea);
         motorB.setSpeed(pwmActualB - errorLinea * factorLinea);
