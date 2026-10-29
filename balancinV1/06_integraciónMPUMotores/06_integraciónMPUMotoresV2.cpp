@@ -3,7 +3,8 @@
   mantenga el equilibrio. No se busca necesariamente que sea extremadamente
   estable, pues eso se hará más adelante al integrar encoders.
 * PROCEDIMIENTO: Los valores del control PID se van asignando por bluetooth
-  con la app Serial bluetooth terminal.
+  con la app Serial bluetooth terminal. Dentro del loop está el bloque perteneciente
+  al bluetooth con 5 comandos (setpoint, kp, kd, ki y pwmbmax)
   
 * ================== METODOLOGIA ======================
 * 1. Iniciar con kp,ki,kd en 0
