@@ -1,37 +1,45 @@
 /*  
-* El sensor de línea es analógico. Tras unas pruebas, la
-  zona blanca marca alrededor de 2500 y en la zona negra 4000.
+* FUNCIÓN: El siguiente código es para crear el algorítmo más básico de un
+  seguidor de linea. No se busca que busque la linea al salirse de la pista
+  ni que se detenga en un fondo completamente blanco o negro.
 */
 
 
-// =========== PINES ================
+//######################################################################
+//##############################  PINES  ###############################
+//######################################################################
 int pinesInfrarrojo[8] = {36, 39, 34, 35, 32, 33, 25, 26};
 
-//========== VARIABLES GLOBALES ==========
+//######################################################################
+//#######################  VARIABLES GLOBALES  #########################
+//######################################################################
 //Peso de la línea a seguir:
 int peso[8] = {-5,-3,-1,0,0,1,3,5};
 
-//DECLARACION FUNCIONES
+//######################################################################
+//####################  DECLARACION DE FUNCIONES  ######################
+//######################################################################
 int convertirAColor(int pinAnalogico);
 
-// ----- CONFIG INICIAL -----//
+//######################################################################
+//####################  CONFIGURACIONES INICIALES  #####################
+//######################################################################
 void setup() {
   Serial.begin(115200);
 }
 
-// ================= BUCLE PRINCIPAL
+//######################################################################
+//#########################  BUCLE PRINCIPAL  ##########################
+//######################################################################
 void loop() {
 
-  int error = 0;
-  int cantLeidos = 0;
-  int posicion = 0;
+  int error, cantLeidos, posicion = 0;
   for(int i=0; i<8; i++){
-    //El error es un número que indica si la línea negra, sobre el fondo blanco
-    //Está hacía la derecha o izquierda
     posicion += convertirAColor(pinesInfrarrojo[i])* peso[i];
     cantLeidos += convertirAColor(pinesInfrarrojo[i]);
   }
   if (cantLeidos != 0){
+    //El error es un número que indica si la línea está hacía la derecha o izquierda
     error = posicion/cantLeidos;
   }else{
     Serial.println("Detener motores");
@@ -41,8 +49,9 @@ void loop() {
   delay(200);
 }
 
-
-// DEFINICION FUNCIONES
+//######################################################################
+//#####################  DEFINICION DE FUNCIONES  ######################
+//######################################################################
 int convertirAColor(int pinAnalogico){
   if(analogRead(pinAnalogico) > 3500){
     return 1; //Color negro
