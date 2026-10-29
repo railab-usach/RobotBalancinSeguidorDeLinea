@@ -1,28 +1,33 @@
 /*
-* El siguiente código tiene como finalidad lograr que el balancin
+* FUNCIÓN: El siguiente código tiene como finalidad lograr que el balancin
   mantenga el equilibrio. No se busca necesariamente que sea extremadamente
   estable, pues eso se hará más adelante al integrar encoders.
-* Los valores se van asignando por bluetooth con la app Serial bluetooth terminal
-
-* ================== RESULTADOS ======================
-* kp: 30, ki= 500, kd: 0.5
-* Además, el limite del motor rápido, para asegurar que el balancin no gire
-* quedo en factor = 0.78
-
+* PROCEDIMIENTO: Los valores del control PID se van asignando por bluetooth
+  con la app Serial bluetooth terminal.
+  
 * ================== METODOLOGIA ======================
 * 1. Iniciar con kp,ki,kd en 0
-* 2. Subir kp hasta llega a un valor donde el balancin trate de mantenerse en equilibrio 
-    oscile 1 o 2 veces y se caiga. (el balanceo debe ser muy leve. Si se inclina más de 5° se caerá)
-* 3. Subir kd de a poco hasta que el balancín deje de oscilar
-* 4. El balancín se seguirá cayendo. Aumentar ki con el valor necesario hasta
-    que deje de caerse y soporte empujones.
+* 2. Subir kp de 1 a 1 o 5 en 5 hasta llega a un valor donde el balancin trate de mantenerse en equilibrio 
+    oscile 1 o 2 veces y se caiga. (el balanceo debe ser muy leve. Si el balancín supera los 5°-10°
+    de inclinación se caerá). Si se asigna un kp muy alto, el balancín oscilará bruzcamente.
+* 3. Subir kd de a poco (de 0,1 en 0,1 o incluso 0.05 en 0.05) hasta que el balancín deje de oscilar. Si
+  el balancín empieza a vibrar es porque kd es muy alto. El balancín se seguirá cayendo ante
+  fuertes perturbaciones.
+* 4. Aumentar ki de 10 en 10 hasta que el balancín deje de caerse y soporte empujones.
+
+* ================== RESULTADOS PID ======================
+* kp: 30, ki= 500, kd: 0.5
+* NOTA: Los motores funcionaban de forma dispareja, es decir, uno giraba más rápido que el otro, generando que el
+  balancín se equilibre, pero con el tiempo empiece a girar hacía un lado. Para solucionar
+  esto, se agregó un factor de reducción al motor más rápido. Este factor es un número de 0 al 1 que se multiplica
+  al pwm del motor. Un factor de 0.5 significa que el motor funcionará a su 50%.
+  RESULTADO: Luego de diferentes pruebas de balanceo, el factor adecuado fue de 0.78.
 */
 
 
 //######################################################################
 //############################  LIBRERIAS  #############################
 //######################################################################
-
 //====================  I2C  ====================
 #include "Wire.h"                           //Libreria para activar comunicación I2C.
 #include "I2Cdev.h"                         //Libreria auxiliar para más comandos con I2C.
@@ -36,16 +41,13 @@
 //====================  BLUETOOTH  ====================
 #include "BluetoothSerial.h"
 
-
 //######################################################################
 //##############################  PINES  ###############################
 //######################################################################
-
 //====================  MOTORES  ====================
 //Motor A
 int M1A = 23;
 int M1B = 22;
-
 //Motor B
 int M2A = 19;
 int M2B = 21;
@@ -54,17 +56,17 @@ int M2B = 21;
 int pinSDA = 16;
 int pinSCL = 17;
 
-
-
+//######################################################################
+//######################  VARIABLES GLOBALES  ##########################
+//######################################################################
+//====================  PID IMU-MOTOR  ====================
 double kpIMU, kiIMU, kdIMU = 0.0;
 double setpointIMU = 2.6;    //Desfase IMU
 float factorMotorB = 1; //Motor que gira más rápido
 
-
 //######################################################################
 //############################  OBJETOS  ###############################
 //######################################################################
-
 //====================  MPU6050  ====================
 MPU6050 mpu(0x68);      //Creamos una categoría tipo MPU6050 y agregamos un dispositivo llamado mpu.
                         //El parámetro es su dirección I2C.
@@ -76,12 +78,11 @@ CytronMD motorB(PWM_PWM, M2A, M2B);
 //====================  BLUETOOTH  ====================
 BluetoothSerial SerialBT;
 
-
 //######################################################################
 //####################  DECLARACION FUNCIONES  #########################
 //######################################################################
+//====================  MOTORES  ====================
 int rampaPWM(int &pwmActual, int &pwmObjetivo, int paso);
-
 
 //######################################################################
 //####################  CONFIGURACIONES INICIALES  #####################
@@ -92,7 +93,6 @@ void setup() {
   Wire.begin(pinSDA, pinSCL);               //Inicia el I2C.
   Wire.setClock(400000);
 
-  Serial.begin(115200);
   //====================  BLUETOOTH  ====================
   SerialBT.begin("MiBalancin"); //Nombre de nuestro dispositivo bluetooth
 
@@ -114,8 +114,7 @@ void setup() {
   mpu.setYAccelOffset(215);
   mpu.setZAccelOffset(1151);
 
-
-  //======== CÓDIGO DE ESTABILIZACIÓN ===================
+  //======== CÓDIGO DE ESTABILIZACIÓN MPU ===================
   delay(2000);
 
   //Descartar las primeras lecturas basura
@@ -127,19 +126,19 @@ void setup() {
   }
 }
 
-
 //######################################################################
 //#########################  BUCLE PRINCIPAL  ##########################
 //######################################################################
 void loop() {
-
-  //====================  MPU6050  ====================
+  //====================  SISTEMA DE CONTROL 1  ====================
   // Bucle de lectura a 200Hz (cada 5ms)
   static unsigned long tiempoAnteriorPID = 0;
   int intervaloPIDIMU = 5000;  //5microseg: T=1/0.005s -> f = 200hz
   if (micros() - tiempoAnteriorPID >= intervaloPIDIMU) {
     tiempoAnteriorPID = micros();
 
+    
+    //====================  SENSADO  ====================
     //Obtención directa de los 6 datos crudos
     int16_t ax, ay, az;
     int16_t gx, gy, gz;
@@ -158,39 +157,35 @@ void loop() {
     rollFiltrado = 0.98 * (rollFiltrado + giroX * dt) + 0.02 * anguloAcel;
 
 
-    //====================  MOTOR - PID - MPU6050  ====================
+    //====================  LÓGICA DE CONTROL  ====================
     double inputIMU = rollFiltrado;    //Medición del angulo roll del MPU6050 para el PID.
 
     float error = inputIMU - setpointIMU;
 
-    //Parte proporcional:
+    //PARTE PROPORCIONAL:
     float proporcional = kpIMU * error;
 
-    //Parte integral:
+    //PARTE INTEGRAL:
     static float errorSum = 0;
 
     //Acumulación del error por cada dt (5ms = 5000 microsegundos)
     errorSum += error * dt;
     if(kiIMU == 0){
-      errorSum = 0; //Para evitar que el error se acumule antes de aplicar la parte integral
+      errorSum = 0; //Para evitar que el error se acumule en las pruebas iniciales
     }
     // Anti-Windup: limita la acumulación integral para evitar saturación
     errorSum = constrain(errorSum, -150.0, 150.0); 
 
     float integral = kiIMU * errorSum;
 
-    //Parte derivativa:
+    //PARTE DERIVATIVA
     float derivativo = kdIMU * giroX;
 
     // ---- CORTE DE SEGURIDAD POR CAÍDA ----
     if (abs(rollFiltrado) > 40.0) { 
       // Si el robot cae más de 40 grados, apaga todo
-      motorA.setSpeed(0);
-      motorB.setSpeed(0);
       double outputIMU = 0;          // Limpia la salida residual
       errorSum = 0; //Eliminar error
-      int pwmActualA = 0;
-      int pwmActualB = 0;
     } else {
       // Operación normal
         
@@ -199,6 +194,7 @@ void loop() {
       outputIMU = constrain(outputIMU, -255.0, 255.0);
 
 
+      //====================  ACTUACION  ====================
       //Compensación de la zona muerta con el PWM mínimo útil.
       int minPWMA = 10;
       int minPWMB = 8;
@@ -282,8 +278,8 @@ void loop() {
 int rampaPWM(int &pwmActual, int &pwmObjetivo, int paso){
   int diferencia = pwmObjetivo - pwmActual;
 
-  bool cambioSentido = (pwmObjetivo > 0 && pwmActual < 0) || (pwmObjetivo < 0 && pwmActual > 0);
-  if (cambioSentido){
+  //Actualizar valor del paso si es que se detecta un cambio de sentido
+  if (pwmObjetivo > 0 && pwmActual < 0) || (pwmObjetivo < 0 && pwmActual > 0){
     paso = paso/3;    //Relentizar paso
   }
 
