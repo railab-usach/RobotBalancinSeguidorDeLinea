@@ -49,3 +49,4 @@ int convertirAColor(int pinAnalogico){
     return 0; //Color blanco
   }
 }
+
