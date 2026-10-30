@@ -52,9 +52,6 @@ int pinesInfrarrojo[8] = {36, 39, 34, 35, 32, 33, 25, 26};
 //######################################################################
 //######################  VARIABLES GLOBALES  ##########################
 //######################################################################
-//====================  PID MOTOR - MPU6050  ====================
-double setpointIMU = 2.6;    //Desfase IMU
-
 //====================  MOTOR - LINEA  ====================
 float factorLinea = 0;
 
@@ -114,7 +111,7 @@ void setup() {
   mpu.setYAccelOffset(215);
   mpu.setZAccelOffset(1151);
 
-  //======== CÓDIGO DE ESTABILIZACIÓN ===================
+  //-----  CÓDIGO DE ESTABILIZACIÓN  -----
   delay(2000);
 
   //Descartar las primeras lecturas basura
@@ -137,6 +134,7 @@ void loop() {
   if (micros() - tiempoAnteriorPID >= intervaloPIDIMU) {
     tiempoAnteriorPID = micros();
 
+    
     //====================  SENSADO  ====================
     //Obtención directa de los 6 datos crudos
     int16_t ax, ay, az;
@@ -155,10 +153,12 @@ void loop() {
     static float rollFiltrado = 0.0;
     rollFiltrado = 0.98 * (rollFiltrado + giroX * dt) + 0.02 * anguloAcel;
 
+    
     //====================  LÓGICA DE CONTROL 1: IMU-MOTOR ====================
     double inputIMU = rollFiltrado;    //Medición del angulo roll del MPU6050 para el PID.
-
-    float error = inputIMU - setpointIMU;
+    double setpointIMU = 0;    
+    
+    float error = inputIMU - setpointIMU - 2.6;  //2.6 es el centro de masa del balancin
 
     //Parte proporcional:
     double kpIMU = 30;
@@ -170,9 +170,6 @@ void loop() {
     //Acumulación del error por cada dt (5ms = 5000 microsegundos)
     double kiIMU = 500;
     errorSum += error * dt;
-    if(kiIMU == 0){
-      errorSum = 0; //Para evitar que el error se acumule antes de aplicar la parte integral
-    }
     // Anti-Windup: limita la acumulación integral para evitar saturación
     errorSum = constrain(errorSum, -150.0, 150.0); 
 
@@ -182,21 +179,23 @@ void loop() {
     double kdIMU = 0.5;
     float derivativo = kdIMU * giroX;
 
-     // ---- CORTE DE SEGURIDAD POR CAÍDA ----
+    double outputIMU = proporcional + integral + derivativo;
+    // 2. Acotación de la salida
+    outputIMU = constrain(outputIMU, -255.0, 255.0);
+    
+     // ----- CORTE DE SEGURIDAD POR CAÍDA -----
+    bool robotCaido = false;
     if (abs(rollFiltrado) > 40.0) { 
       // Si el robot cae más de 40 grados, apaga todo
-      double outputIMU = 0;          // Limpia la salida residual
-      errorSum = 0; //Eliminar error
-    } else {
-      // Operación normal
-        
-      double outputIMU = proporcional + integral + derivativo;
-      // 2. Acotación de la salida
-      outputIMU = constrain(outputIMU, -255.0, 255.0);
+      outputIMU = 0;     //señal = 0
+      errorSum = 0;      //Eliminar error
+      robotCaido = true;
+    }
 
+    
       //====================  LÓGICA DE CONTROL 2: LINEA-MOTOR ====================
       float errorLinea = 0.0;
-      int cantLeidos, posicion = 0;
+      int cantLeidos = 0, posicion = 0;
       for(int i=0; i<8; i++){
         posicion += convertirAColor(pinesInfrarrojo[i])* peso[i];
         cantLeidos += convertirAColor(pinesInfrarrojo[i]);
@@ -206,8 +205,10 @@ void loop() {
         errorLinea = posicion/cantLeidos;
       }else{
         //Detener avance del balancin
+        setpoint = 0;
       }
 
+    
       //====================  ACTUACION  ====================
       //Compensación de la zona muerta con el PWM mínimo útil.
       int minPWMA = 10;
@@ -245,12 +246,22 @@ void loop() {
       static int pwmActualB = 0;
       int pwmObjetivoA = pwmUtilA;
       int pwmObjetivoB = pwmUtilB;
+
+    // ----- DECISIÓN FINAL SOBRE SI MOVER LOS MOTORES O NO -----
+    if(!robotCaido){
       pwmActualA = rampaPWM(pwmActualA, pwmObjetivoA, paso);
       pwmActualB = rampaPWM(pwmActualB, pwmObjetivoB, paso);
 
       motorA.setSpeed(pwmActualA);
       motorB.setSpeed(pwmActualB);
-    
+    }
+    else{
+      //Si el robot está caido, apagar todo
+      pwmActualA = 0;
+      pwmActualB = 0;
+
+      motorA.setSpeed(0);
+      motorB.setSpeed(0);
     }
   }
 
@@ -284,6 +295,7 @@ void loop() {
 //######################################################################
 //#####################  DEFINICION FUNCIONES  #########################
 //######################################################################
+//====================  MOTORES  ====================
 //FUNCION: Acelerar de manera controlada el pwm para motores
 //ENTRADA 1: pwm actual del motor
 //ENTRADA 2: pwm al que se quiere llegar
@@ -308,6 +320,10 @@ int rampaPWM(int &pwmActual, int &pwmObjetivo, int paso){
   return pwmActual;
 }
 
+//====================  SENSOR INFRARROJO  ====================
+//FUNCIÓN: Convertir las lecturas analógicas del sensor a digitales (para mejor comprensión)
+//ENTRADAS: Pin de datos del sensor
+//SALIDAS: Un 0 si el fondo es blanco y un 1 si el fondo es negro.
 int convertirAColor(int pinAnalogico){
   if(analogRead(pinAnalogico) > 3500){
     return 1; //Color negro
