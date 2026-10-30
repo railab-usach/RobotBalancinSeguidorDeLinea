@@ -199,8 +199,12 @@ void loop() {
      // ---- CORTE DE SEGURIDAD POR CAÍDA ----
     if (abs(rollFiltrado) > 40.0) { 
       // Si el robot cae más de 40 grados, apaga todo
-      double outputIMU = 0;          // Limpia la salida residual
-      errorSum = 0; //Eliminar error
+      motorA.setSpeed(0);
+      motorB.setSpeed(0);
+      double outputIMU = 0;     // Limpia la salida residual
+      errorSum = 0;           //Eliminar error
+      int pwmActualA = 0;
+      int pwmActualB = 0;
     } else {
       // Operación normal
         
