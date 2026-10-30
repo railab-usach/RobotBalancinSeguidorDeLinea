@@ -203,10 +203,12 @@ void loop() {
       if (cantLeidos != 0){
         //El error es un número que indica si la línea está hacía la derecha o izquierda
         errorLinea = posicion/cantLeidos;
+        //setpoint = 1
       }else{
         //Detener avance del balancin
         setpoint = 0;
       }
+    //Se recomienda migrar a un control PD o PID dependiendo de la respuesta
 
     
       //====================  ACTUACION  ====================
