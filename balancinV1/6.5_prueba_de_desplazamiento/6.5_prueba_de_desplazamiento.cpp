@@ -6,9 +6,11 @@
   y tiempos de detención. Además del setpoint, que será el que genere la inclinación para avanzar.
 
 * ================== RESULTADOS ======================
-*  Setpoint:
-*  Tiempo de movimiento:
-*  Tiempo de detención:
+* Se logró que el balancín avanzara de forma relativamente estable con:
+*  Setpoint: 1.5
+*  Tiempo de movimiento: 1000
+*  Tiempo de detención: 1000
+* Sin embargo, si el suelo tiene diferentes pendientes, el movimiento se vuelve al errático.
 */
 
 
@@ -70,9 +72,6 @@ BluetoothSerial SerialBT;
 //######################################################################
 //====================  MOTORES  ====================
 int rampaPWM(int &pwmActual, int &pwmObjetivo, int paso);
-
-//====================  SENSOR INFRARROJO  ====================
-int convertirAColor(int pinAnalogico);
 
 //######################################################################
 //####################  CONFIGURACIONES INICIALES  #####################
