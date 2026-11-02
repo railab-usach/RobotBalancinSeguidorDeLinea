@@ -1,23 +1,21 @@
 /*
-*  ULTIMA MODIFICACIÓN: Se cambió de posición el control de linea.
-  El control de línea definirá el setpointIMU.
-  Para desplazarse, se generará un setpoint cambiante (2 grados, luego 0 grado, luego 2, etc).
-  Esto con el proposito de desplazar el balancín, de manera intermitente y no agarre exceso de
-  velocidad.
-  
-* FUNCIÓN: El siguiente código es para calibrar con cuenta fuerza se corrije la posición
-  del balancín al leer la línea.
-*  PROCEDIMIENTO: Se tiene que generar un setpoint un poquito más alto que el setpoint de equilibrio,
-  esto con la finalidad de que el balancín avance. Posterior a esto, se tiene que asignar valores al
-  "factor de linea". Este número indica con cuanta fuerza se gira a la derecha o izquierda para seguir
-  la linea.
-  Los valores se van asignando por bluetooth con la app Serial bluetooth terminal. Dentro del loop está
-  el bloque perteneciente al bluetooth con 2 comandos (setpoint y kl).
+*  ULTIMA MODIFICACIÓN: Se implementó el mecanismo de desplazamiento creado en
+  "06.2_prueba_de_desplazamiento".
+  Ya teniendo un desplazamiento relativamente estable, se cambiará el sistema de detección de
+  linea por un control PD.
+*  PROCEDIMIENTO: Se debe colocar el robot sobre la linea y calibrar kp y kd a través de la app
+  Serial Bluetooth Terminal.
+
+* ================== METODOLOGIA ======================
 
 * ================== RESULTADOS ======================
 *  Con un setpoint de entre 3.5° y 4° el balancín avanza de forma relativamente controlada.
 *  Con un factor de linea igual a 10 el balancín tiene la suficiente fuerza para seguir la línea,
   pero sin girar en exceso para salirse del camino.
+
+
+  kp:9
+  kd:5
 */
 
 
@@ -59,10 +57,8 @@ int pinesInfrarrojo[8] = {36, 39, 34, 35, 32, 33, 25, 26};
 //######################  VARIABLES GLOBALES  ##########################
 //######################################################################
 //====================  BLUETOOTH  ====================
-double setpointBluetooth = 0;
-float factorLineaBluetooth = 0;
-int tiempoMovimientoBluetooth = 0;
-int tiempoQuietoBluetooth = 0;
+double kpLineaBluetooth = 0;
+double kdLineaBluetooth = 0;
 
 //====================  MOTOR - LINEA  ====================
 //Peso de la línea a seguir:
@@ -143,10 +139,10 @@ void loop() {
   int intervaloPIDIMU = 5000;  //5microseg: T=1/0.005s -> f = 200hz
   if (micros() - tiempoAnteriorPID >= intervaloPIDIMU) {
     tiempoAnteriorPID = micros();
+    float dt = 0.005;
 
     //====================  LÓGICA DE CONTROL 1: LINEA-MOTOR ====================
-    static float anguloInclinacionBalancin = 0;
-    float errorLinea = 0.0;
+    double errorLinea = 0.0;
     int cantLeidos = 0, posicion = 0;
     for(int i=0; i<8; i++){
       posicion += convertirAColor(pinesInfrarrojo[i])* peso[i];
@@ -155,27 +151,41 @@ void loop() {
     if (cantLeidos != 0){
       //El error es un número que indica si la línea está hacía la derecha o izquierda
       errorLinea = posicion/cantLeidos;
-      //Se recomienda migrar a un control PD o PID dependiendo de la respuesta
+    }
 
-      //CONDICIÓN DE MOVIMIENTO INTERMITENTE: Mover y detener cada 500ms
-      static bool movimiento = true;
-      static unsigned long tiempoAnteriorMovimiento = 0;
-      int intervaloMovimiento = tiempoMovimientoBluetooth;
-      int intervaloQuieto = tiempoQuietoBluetooth;
+    //Parte proporcional:
+    double kpLinea = kpLineaBluetooth;
+    double proporcionalLinea = kpLinea * errorLinea;
 
-      if(movimiento){
-        anguloInclinacionBalancin = setpointBluetooth;  //Probar a cuantos grados reacciona mejor
-        if(millis() - tiempoAnteriorMovimiento >= intervaloMovimiento){
-          tiempoAnteriorMovimiento = millis();
-          movimiento = false;  //intercambiar estado
-        }
+    //Parte derivativa:
+    double kdLinea = kdLineaBluetooth;
+    static double errorAnteriorLinea = 0;
+    double derivativaLinea = kdLinea * (errorLinea - errorAnteriorLinea)/dt;
+    errorAnteriorLinea = errorLinea;
+
+    //Salida:
+    double outputLinea = proporcionalLinea + derivativaLinea;
+
+
+    //CONDICIÓN DE MOVIMIENTO INTERMITENTE: Mover y detener cada 1s
+    static float anguloInclinacionBalancin = 0;
+    static bool movimiento = true;
+    static unsigned long tiempoAnteriorMovimiento = 0;
+    int intervaloMovimiento = 1000;
+    int intervaloQuieto = 1000;
+
+    if(movimiento){
+      anguloInclinacionBalancin = 1.5; 
+      if(millis() - tiempoAnteriorMovimiento >= intervaloMovimiento){
+        tiempoAnteriorMovimiento = millis();
+        movimiento = false;  //intercambiar estado
       }
-      else{
-        anguloInclinacionBalancin = 0;
-        if(millis() - tiempoAnteriorMovimiento >= intervaloQuieto){
-          tiempoAnteriorMovimiento = millis();
-          movimiento = true;  //intercambiar estado
-        }
+    }
+    else{
+      anguloInclinacionBalancin = 0;
+      if(millis() - tiempoAnteriorMovimiento >= intervaloQuieto){
+        tiempoAnteriorMovimiento = millis();
+        movimiento = true;  //intercambiar estado
       }
     }
 
@@ -194,7 +204,6 @@ void loop() {
     //No transformamos los datos digitales de la aceleración a unidades física
     //  porque con la operación atan2 se cancelan las unidades.
 
-    float dt = 0.005;
     static float rollFiltrado = 0.0;
     rollFiltrado = 0.98 * (rollFiltrado + giroX * dt) + 0.02 * anguloAcel;
 
@@ -245,22 +254,21 @@ void loop() {
       float pwmUtilA = 0;
       float pwmUtilB = 0;
       float factorMotorB = 0.78; //Motor que gira más rápido
-      float factorLinea = factorLineaBluetooth;
 
       if (outputIMU > 0) {
         //Reescalado de la zona muerta
         pwmUtilA = map(outputIMU, 1,255, minPWMA, 255);
         pwmUtilB = map(outputIMU, 1,255, minPWMB, 255) * factorMotorB;
         //Corrección de la línea
-        pwmUtilA += errorLinea * factorLinea;
-        pwmUtilB -= errorLinea * factorLinea;
+        pwmUtilA += outputLinea; //#########AQUI SUMAR EL OUTPUTLINEA
+        pwmUtilB -= outputLinea;
       } else if (outputIMU < 0) {
         //Reescalado de la zona muerta
         pwmUtilA = map(outputIMU, -1,-255, -minPWMA, -255);
         pwmUtilB = map(outputIMU, -1,-255, -minPWMB, -255) * factorMotorB;
         //Corrección de la línea
-        pwmUtilA -= errorLinea * factorLinea;
-        pwmUtilB += errorLinea * factorLinea;
+        pwmUtilA -= outputLinea;
+        pwmUtilB += outputLinea;
       }else{
         pwmUtilA = 0;
         pwmUtilB = 0;
@@ -305,17 +313,11 @@ void loop() {
       if (comandoBT.length() > 0) {
         comandoBT.trim();
 
-        if (comandoBT.startsWith("kl:")) {
-          factorLineaBluetooth = comandoBT.substring(3).toFloat();
+        if (comandoBT.startsWith("kp:")) {
+          kpLineaBluetooth = comandoBT.substring(3).toFloat();
         }
-        else if(comandoBT.startsWith("setpoint:")) {
-          setpointBluetooth = comandoBT.substring(9).toFloat();
-        }
-        else if(comandoBT.startsWith("tM:")) {
-          tiempoMovimientoBluetooth = comandoBT.substring(3).toFloat();
-        }
-        else if(comandoBT.startsWith("tQ:")) {
-          tiempoQuietoBluetooth = comandoBT.substring(3).toFloat();
+        else if(comandoBT.startsWith("kd:")) {
+          kdLineaBluetooth = comandoBT.substring(3).toFloat();
         }
         
         comandoBT = "";
