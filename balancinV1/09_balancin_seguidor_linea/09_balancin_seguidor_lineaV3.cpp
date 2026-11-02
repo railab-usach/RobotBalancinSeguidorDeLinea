@@ -1,4 +1,5 @@
 /*
+*  ULTIMA MODIFICACION: Se mejoró el bloque relacionado al sensor de linea.
 * FUNCIÓN: El siguiente código es para calibrar con cuenta fuerza se corrije la posición
   del balancín al leer la línea.
 *  PROCEDIMIENTO: Se tiene que generar un setpoint un poquito más alto que el setpoint de equilibrio,
@@ -203,7 +204,7 @@ void loop() {
       if (cantLeidos != 0){
         //El error es un número que indica si la línea está hacía la derecha o izquierda
         errorLinea = posicion/cantLeidos;
-        //setpoint = 1
+        //setpoint = 1 se asigna el valor por bluetooth
       }else{
         //Detener avance del balancin
         setpoint = 0;
