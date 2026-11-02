@@ -1,21 +1,8 @@
 /*
-* El siguiente código tiene como finalidad lograr que el balancin
-  mantenga el equilibrio. No se busca necesariamente que sea extremadamente
-  estable, pues eso se hará más adelante al integrar encoders.
-* Los valores se van asignando por bluetooth con la app Serial bluetooth terminal
-
-* ================== RESULTADOS ======================
-* kp: 30, ki= 500, kd: 0.5
-* Además, el limite del motor rápido, para asegurar que el balancin no gire
-* quedo en factor = 0.78
-
-* ================== METODOLOGIA ======================
-* 1. Iniciar con kp,ki,kd en 0
-* 2. Subir kp hasta llega a un valor donde el balancin trate de mantenerse en equilibrio 
-    oscile 1 o 2 veces y se caiga. (el balanceo debe ser muy leve. Si se inclina más de 5° se caerá)
-* 3. Subir kd de a poco hasta que el balancín deje de oscilar
-* 4. El balancín se seguirá cayendo. Aumentar ki con el valor necesario hasta
-    que deje de caerse y soporte empujones.
+* FUNCIÓN: El siguiente código tiene como finalidad lograr que el balancín, el cual ya
+está calibrado para que pueda mantener su equilibrio, reaccione a una línea negra.
+*  PROCEDIMIENTO: Mediante la app Serial bluetooth terminal se debe asignar un setpoint de 1° o 2°
+para que el balancín se desplace.
 */
 
 
@@ -65,7 +52,7 @@ int pinesInfrarrojo[8] = {36, 39, 34, 35, 32, 33, 25, 26};
 double kpIMU = 30;
 double kiIMU = 500;
 double kdIMU = 0.5;
-double setpointIMU = 2.6;    //Desfase IMU
+double setpointIMU = 0;
 float factorMotorB = 0.78; //Motor que gira más rápido
 
 
@@ -191,7 +178,7 @@ void loop() {
     double inputIMU = rollFiltrado;    //Medición del angulo roll del MPU6050 para el PID.
 
 
-    float error = inputIMU - setpointIMU;
+    float error = inputIMU - setpointIMU - 2.6; //2.6: Centro de equilibrio del balancin
 
     //Parte proporcional:
     float proporcional = kpIMU * error;
