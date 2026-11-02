@@ -277,7 +277,7 @@ int rampaPWM(int &pwmActual, int &pwmObjetivo, int paso){
   int diferencia = pwmObjetivo - pwmActual;
 
   //Actualizar valor del paso si es que se detecta un cambio de sentido
-  if (pwmObjetivo > 0 && pwmActual < 0) || (pwmObjetivo < 0 && pwmActual > 0){
+  if ((pwmObjetivo > 0 && pwmActual < 0) || (pwmObjetivo < 0 && pwmActual > 0)){
     paso = paso/3;    //Relentizar paso
   }
 
