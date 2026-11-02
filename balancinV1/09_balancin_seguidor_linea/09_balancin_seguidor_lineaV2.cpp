@@ -1,4 +1,6 @@
 /*
+*  ULTIMA MODIFICACIÓN: Se asignó por bluetooth una constante para configurar la fuerza con la
+  que reaccionan los motores ante el error de la linea.
 * FUNCIÓN: El siguiente código es para calibrar con cuenta fuerza se corrije la posición
   del balancín al leer la línea.
 *  PROCEDIMIENTO: Se tiene que generar un setpoint un poquito más alto que el setpoint de equilibrio,
