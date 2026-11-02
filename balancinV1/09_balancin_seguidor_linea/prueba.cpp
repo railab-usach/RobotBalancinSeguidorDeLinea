@@ -9,13 +9,8 @@
 * ================== METODOLOGIA ======================
 
 * ================== RESULTADOS ======================
-*  Con un setpoint de entre 3.5° y 4° el balancín avanza de forma relativamente controlada.
-*  Con un factor de linea igual a 10 el balancín tiene la suficiente fuerza para seguir la línea,
-  pero sin girar en exceso para salirse del camino.
-
-
-  kp:9
-  kd:5
+*  Con un kp=9 y un kd=5 para el control de la linea se logró que el balancín completara una vuelta del
+  pequeño circuito de prueba que tenemos.
 */
 
 
