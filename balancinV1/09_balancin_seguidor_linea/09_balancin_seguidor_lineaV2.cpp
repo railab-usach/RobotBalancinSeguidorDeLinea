@@ -133,7 +133,7 @@ void setup() {
 //######################################################################
 void loop() {
   //====================  SENSOR DE LINEA  ====================
-  int errorLinea, cantLeidos, posicion = 0;
+  int errorLinea=0, cantLeidos=0, posicion = 0;
   for(int i=0; i<8; i++){
     posicion += convertirAColor(pinesInfrarrojo[i])* peso[i];
     cantLeidos += convertirAColor(pinesInfrarrojo[i]);
