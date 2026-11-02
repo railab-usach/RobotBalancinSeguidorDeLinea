@@ -217,22 +217,15 @@ void loop() {
       float pwmUtilA = 0;
       float pwmUtilB = 0;
       float factorMotorB = 0.78; //Motor que gira más rápido
-      float factorLinea = factorLineaBluetooth;
 
       if (outputIMU > 0) {
         //Reescalado de la zona muerta
         pwmUtilA = map(outputIMU, 1,255, minPWMA, 255);
         pwmUtilB = map(outputIMU, 1,255, minPWMB, 255) * factorMotorB;
-        //Corrección de la línea
-        pwmUtilA += errorLinea * factorLinea;
-        pwmUtilB -= errorLinea * factorLinea;
       } else if (outputIMU < 0) {
         //Reescalado de la zona muerta
         pwmUtilA = map(outputIMU, -1,-255, -minPWMA, -255);
         pwmUtilB = map(outputIMU, -1,-255, -minPWMB, -255) * factorMotorB;
-        //Corrección de la línea
-        pwmUtilA -= errorLinea * factorLinea;
-        pwmUtilB += errorLinea * factorLinea;
       }else{
         pwmUtilA = 0;
         pwmUtilB = 0;
