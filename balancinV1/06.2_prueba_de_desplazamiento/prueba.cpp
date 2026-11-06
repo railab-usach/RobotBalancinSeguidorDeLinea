@@ -1,16 +1,14 @@
 /*
 *  FUNCIÓN: En el siguiente código se calibrará el desplazamiento del balancín. Al no tener encoders
-  es dificil hacer que se desplace de forma estable, por lo que la lógica que se tomará es hacer que avance
-  y se detenga, avance y se detenga...
-*  PROCEDIMIENTO: Mediante la app Serial Bluetooth Terminal se irán calibrando los tiempos de movimiento
-  y tiempos de detención. Además del setpoint, que será el que genere la inclinación para avanzar.
+  es dificil hacer que se desplace de forma estable, por lo que se usará una rampa de setpoint
+  y una retroalimentación negativa por esfuerzo de PWM.
+*  PROCEDIMIENTO: Mediante la app Serial Bluetooth Terminal se irá calibrando el ángulo máximo
+  al que debe llegar el balancín para equilibrarse y el factor de amortiguación, que es
+  un valor que mapear el output para restarselo al setpoint.
 
 * ================== RESULTADOS ======================
 * Se logró que el balancín avanzara de forma relativamente estable con:
-*  Setpoint: 1.5
-*  Tiempo de movimiento: 1000
-*  Tiempo de detención: 1000
-* Sin embargo, si el suelo tiene diferentes pendientes, el movimiento se vuelve al errático.
+*  Con un ángulo máximo de 1.5 y un factor de amortiguamiento de 0.01
 */
 
 
@@ -157,17 +155,12 @@ void loop() {
       anguloDeseado = 0.0;
     }
 
-    // Leve compensación por esfuerzo para evitar embalamiento (feedback de PWM)
-    // Si los motores están empujando muy fuerte hacia adelante, reducimos un poco la inclinación
     static double promedioPWM = 0;
-    promedioPWM = (0.95 * promedioPWM) + (0.05 * outputIMU); 
+    //====================  LÓGICA DE CONTROL 1: IMU-MOTOR ====================
+    double inputIMU = rollFiltrado;    //Medición del angulo roll del MPU6050 para el PID.  
     
     double setpointIMU = anguloDeseado - (promedioPWM * factorAmortiguacionBluetooth); // Factor de amortiguación
 
-    //====================  LÓGICA DE CONTROL 1: IMU-MOTOR ====================
-    double inputIMU = rollFiltrado;    //Medición del angulo roll del MPU6050 para el PID.  
-    double setpointIMU = anguloInclinacionBalancin;
-    
     double error = inputIMU - setpointIMU - 2.6;  //2.6 es el centro de masa del balancin
 
     //Parte proporcional:
@@ -193,12 +186,21 @@ void loop() {
     // 2. Acotación de la salida
     outputIMU = constrain(outputIMU, -255.0, 255.0);
     
+
+    // Leve compensación por esfuerzo para evitar embalamiento (feedback de PWM)
+    // Si los motores están empujando muy fuerte hacia adelante, reducimos un poco la inclinación
+    
+    promedioPWM = (0.95 * promedioPWM) + (0.05 * outputIMU); 
+    
+    
+
      // ----- CORTE DE SEGURIDAD POR CAÍDA -----
     bool robotCaido = false;
     if (abs(rollFiltrado) > 40.0) { 
       // Si el robot cae más de 40 grados, apaga todo
       outputIMU = 0;     //señal = 0
       errorSum = 0;      //Eliminar error
+      promedioPWM = 0;
       robotCaido = true;
     }
 
