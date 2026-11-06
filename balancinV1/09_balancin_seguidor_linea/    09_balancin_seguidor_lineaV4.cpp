@@ -11,6 +11,9 @@
 * ================== RESULTADOS ======================
 *  Con un kp=9 y un kd=5 para el control de la linea se logró que el balancín completara una vuelta del
   pequeño circuito de prueba que tenemos.
+
+  PD: Generar movimiento de forma intermitente hace muy inestable el control PD del sigue lineas.
+  Usar este mecanismo de movimiento no resultó.
 */
 
 
