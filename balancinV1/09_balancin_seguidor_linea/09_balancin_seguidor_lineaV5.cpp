@@ -1,19 +1,22 @@
 /*
 *  ULTIMA MODIFICACIÓN: Se implementó el mecanismo de desplazamiento creado en
-  "06.2_prueba_de_desplazamiento".
-  Ya teniendo un desplazamiento relativamente estable, se cambiará el sistema de detección de
-  linea por un control PD.
+  "06.2_prueba_de_desplazamientoV2", pero el ángulo máximo y factor de amortiguacion
+  tuvieron que ser recalibrados en la práctica en conjunto con el control PD del
+  seguidor de línea.
 *  PROCEDIMIENTO: Se debe colocar el robot sobre la linea y calibrar kp y kd a través de la app
-  Serial Bluetooth Terminal.
+  Serial Bluetooth Terminal. También, si el robot se descarrila, quizás sea necesario reducir su
+  velocidad calibrando el ángulo máximo y factor de amortiguacion. 
 
 * ================== METODOLOGIA ======================
-
+* Poner al balancin sobre la línea y justo antes de una curva. Subir de 1 en 1 el kp hasta que el balancin
+  sea capaz de girar con la suficiente fuerza en la curva. Luego, colocarlo en una línea recta y subir el
+  kd de 1 en 1 hasta que, al generar un giro para corregir el error de la línea, no "pase de largo" por girar
+  demasiado.
+  Luego, hacer pruebas. Si el balancin se descarrila u oscila mucho quizás se deba reducir un poco el ángulo
+  y factor de amortiguacion encargados del desplazamiento
 * ================== RESULTADOS ======================
-*  Con un kp=9 y un kd=5 para el control de la linea se logró que el balancín completara una vuelta del
-  pequeño circuito de prueba que tenemos.
-
-  PD: Generar movimiento de forma intermitente hace muy inestable el control PD del sigue lineas.
-  Usar este mecanismo de movimiento no resultó.
+* Con un kp=8, kd=2, anguloMax=1.0 y factor de amortiguacion = 0.01 se logró que el balancín completara varias
+  vueltas de un circuito simple que construimos.
 */
 
 
@@ -57,6 +60,9 @@ int pinesInfrarrojo[8] = {36, 39, 34, 35, 32, 33, 25, 26};
 //====================  BLUETOOTH  ====================
 double kpLineaBluetooth = 0;
 double kdLineaBluetooth = 0;
+
+double angulomaximoBluetooth = 1;
+double factorAmortiguacionBluetooth = 0.003;
 
 //====================  MOTOR - LINEA  ====================
 //Peso de la línea a seguir:
@@ -184,7 +190,7 @@ void loop() {
     
     //====================  LÓGICA DE DESPLAZAMIENTO ====================
     static float anguloDeseado = 0.0;
-    float anguloObjetivoMax = 1.5; // Grados de inclinación para avanzar (ajustar entre 0.8 y 1.5)
+    float anguloObjetivoMax = angulomaximoBluetooth ; // Grados de inclinación para avanzar (ajustar entre 0.8 y 1.5)
     
     // Si el robot está equilibrado, incrementamos suavemente el ángulo de avance
     if (abs(rollFiltrado) < 15.0) {
@@ -199,7 +205,7 @@ void loop() {
     //====================  LÓGICA DE CONTROL 2: IMU-MOTOR ====================
     static double promedioPWM = 0;
     double inputIMU = rollFiltrado;    //Medición del angulo roll del MPU6050 para el PID.
-    double factorAmortiguacion = 0.01;
+    double factorAmortiguacion = factorAmortiguacionBluetooth;
     double setpointIMU = anguloDeseado - (promedioPWM * factorAmortiguacion); // Factor de amortiguación
     
     double error = inputIMU - setpointIMU - 2.6;  //2.6 es el centro de masa del balancin
@@ -314,6 +320,12 @@ void loop() {
         }
         else if(comandoBT.startsWith("kd:")) {
           kdLineaBluetooth = comandoBT.substring(3).toFloat();
+        }
+        else if(comandoBT.startsWith("max:")) {
+          angulomaximoBluetooth = comandoBT.substring(4).toFloat();
+        }
+        else if(comandoBT.startsWith("fa:")) {
+          factorAmortiguacionBluetooth  = comandoBT.substring(3).toFloat();
         }
         
         comandoBT = "";
