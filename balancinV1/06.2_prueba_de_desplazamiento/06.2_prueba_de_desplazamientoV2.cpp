@@ -160,6 +160,11 @@ void loop() {
     double inputIMU = rollFiltrado;    //Medición del angulo roll del MPU6050 para el PID.  
     
     double setpointIMU = anguloDeseado - (promedioPWM * factorAmortiguacionBluetooth); // Factor de amortiguación
+    //Supongamos un ángulo para simular desplazamiento igual a 1.5.
+    //Si se le llega a enviar un PWM de 150, con un factor de amortiguacion de 0.01,
+    // anguloDeseado - (promedioPWM * factorAmortiguacionBluetooth) = 0 (se cancelan).
+    //Esto viene de la supocisión que un PWM alto es igual a velocidad alta. Esto solo se cumple en superficies
+    //lisas.
 
     double error = inputIMU - setpointIMU - 2.6;  //2.6 es el centro de masa del balancin
 
