@@ -1,0 +1,369 @@
+/*
+*  ULTIMA MODIFICACIÓN: Se implementó el mecanismo de desplazamiento creado en
+  "06.2_prueba_de_desplazamiento".
+  Ya teniendo un desplazamiento relativamente estable, se cambiará el sistema de detección de
+  linea por un control PD.
+*  PROCEDIMIENTO: Se debe colocar el robot sobre la linea y calibrar kp y kd a través de la app
+  Serial Bluetooth Terminal.
+
+* ================== METODOLOGIA ======================
+
+* ================== RESULTADOS ======================
+*  Con un kp=9 y un kd=5 para el control de la linea se logró que el balancín completara una vuelta del
+  pequeño circuito de prueba que tenemos.
+
+  PD: Generar movimiento de forma intermitente hace muy inestable el control PD del sigue lineas.
+  Usar este mecanismo de movimiento no resultó.
+*/
+
+
+//######################################################################
+//############################  LIBRERIAS  #############################
+//######################################################################
+//====================  I2C  ====================
+#include "Wire.h"                           //Libreria para activar comunicación I2C.
+#include "I2Cdev.h"                         //Libreria auxiliar para más comandos con I2C.
+
+//====================  MPU6050  ====================
+#include "MPU6050.h"
+
+//====================  MOTOR  ====================
+#include <CytronMotorDriver.h>
+
+//====================  BLUETOOTH  ====================
+#include "BluetoothSerial.h"
+
+//######################################################################
+//##############################  PINES  ###############################
+//######################################################################
+//====================  MOTORES  ====================
+//Motor A
+int M1A = 23;
+int M1B = 22;
+//Motor B
+int M2A = 19;
+int M2B = 21;
+
+//====================  I2C  ====================
+int pinSDA = 16;
+int pinSCL = 17;
+
+//====================  SENSOR INFRARROJO  ====================
+int pinesInfrarrojo[8] = {36, 39, 34, 35, 32, 33, 25, 26};
+
+//######################################################################
+//######################  VARIABLES GLOBALES  ##########################
+//######################################################################
+//====================  BLUETOOTH  ====================
+double kpLineaBluetooth = 0;
+double kdLineaBluetooth = 0;
+
+//====================  MOTOR - LINEA  ====================
+//Peso de la línea a seguir:
+int peso[8] = {-7,-5,-3,-1,1,3,5,7};
+
+//######################################################################
+//############################  OBJETOS  ###############################
+//######################################################################
+//====================  MPU6050  ====================
+MPU6050 mpu(0x68);      //Creamos una categoría tipo MPU6050 y agregamos un dispositivo llamado mpu.
+                        //El parámetro es su dirección I2C.
+
+//====================  MOTORES  ====================
+CytronMD motorA(PWM_PWM, M1A, M1B);
+CytronMD motorB(PWM_PWM, M2A, M2B);
+
+//====================  BLUETOOTH  ====================
+BluetoothSerial SerialBT;
+
+//######################################################################
+//####################  DECLARACION FUNCIONES  #########################
+//######################################################################
+//====================  MOTORES  ====================
+int rampaPWM(int &pwmActual, int &pwmObjetivo, int paso);
+
+//====================  SENSOR INFRARROJO  ====================
+int convertirAColor(int pinAnalogico);
+
+//######################################################################
+//####################  CONFIGURACIONES INICIALES  #####################
+//######################################################################
+void setup() {
+  //====================  I2C  ====================
+  //Config I2C
+  Wire.begin(pinSDA, pinSCL);               //Inicia el I2C.
+  Wire.setClock(400000);
+
+  //====================  BLUETOOTH  ====================
+  SerialBT.begin("MiBalancin"); //Nombre de nuestro dispositivo bluetooth
+
+  //====================  MPU6050  ====================
+  /*----- INICIAR MPU -----*/
+  mpu.initialize();       //Inicia el mpu (pero el DMP aún no).
+
+  /*----- CALIBRACIÓN MPU -----*/
+  mpu.setDLPFMode(3);  //Filtro pasabajos: Corte = 42hz
+  mpu.setFullScaleGyroRange(1); //Resolución giroscopio: 500°/s
+  mpu.setFullScaleAccelRange(2); //Resolución acelerómetro: 8g
+
+  // Carga de tus offsets
+  mpu.setXGyroOffset(137);
+  mpu.setYGyroOffset(-72);
+  mpu.setZGyroOffset(19);
+
+  mpu.setXAccelOffset(2193);
+  mpu.setYAccelOffset(215);
+  mpu.setZAccelOffset(1151);
+
+  //-----  CÓDIGO DE ESTABILIZACIÓN  -----
+  delay(2000);
+
+  //Descartar las primeras lecturas basura
+  int16_t ax, ay, az;
+  int16_t gx, gy, gz;
+  for(int i = 0; i < 20; i++){
+    mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+    delay(5);
+  }
+}
+
+//######################################################################
+//#########################  BUCLE PRINCIPAL  ##########################
+//######################################################################
+void loop() {
+   //====================  SISTEMA DE CONTROL  ====================
+  // Bucle de lectura a 200Hz (cada 5ms)
+  static unsigned long tiempoAnteriorPID = 0;
+  int intervaloPIDIMU = 5000;  //5microseg: T=1/0.005s -> f = 200hz
+  if (micros() - tiempoAnteriorPID >= intervaloPIDIMU) {
+    tiempoAnteriorPID = micros();
+    float dt = 0.005;
+
+    //====================  LÓGICA DE CONTROL 1: LINEA-MOTOR ====================
+    double errorLinea = 0.0;
+    int cantLeidos = 0, posicion = 0;
+    for(int i=0; i<8; i++){
+      posicion += convertirAColor(pinesInfrarrojo[i])* peso[i];
+      cantLeidos += convertirAColor(pinesInfrarrojo[i]);
+    }
+    if (cantLeidos != 0){
+      //El error es un número que indica si la línea está hacía la derecha o izquierda
+      errorLinea = (double)posicion/cantLeidos;
+    }
+
+    //Parte proporcional:
+    double kpLinea = kpLineaBluetooth;
+    double proporcionalLinea = kpLinea * errorLinea;
+
+    //Parte derivativa:
+    double kdLinea = kdLineaBluetooth;
+    static double errorAnteriorLinea = 0;
+    double derivativaLinea = kdLinea * (errorLinea - errorAnteriorLinea)/dt;
+    errorAnteriorLinea = errorLinea;
+
+    //Salida:
+    double outputLinea = proporcionalLinea + derivativaLinea;
+    
+    //====================  SENSADO  ====================
+    //Obtención directa de los 6 datos crudos
+    int16_t ax, ay, az;
+    int16_t gx, gy, gz;
+    mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+
+    //Conversión de datos digitales a unidades fisicas (grados/segundo)
+    float giroX = gx/65.5; //grados. El 65.5 es el valor correspondiente a la resolución de 500°/s
+
+    //Mi balancín gira en el eje x. Por lo tanto, se mueve en el eje Y, Z (de forma lineal).
+    float anguloAcel = atan2(ay, sqrt((long)az*az + (long)ax*ax))*180/PI;  //Calculo en 3D para compensar cualquier desviación
+    //No transformamos los datos digitales de la aceleración a unidades física
+    //  porque con la operación atan2 se cancelan las unidades.
+
+    static float rollFiltrado = 0.0;
+    rollFiltrado = 0.98 * (rollFiltrado + giroX * dt) + 0.02 * anguloAcel;
+
+    
+    //====================  LÓGICA DE DESPLAZAMIENTO ====================
+    static float anguloDeseado = 0.0;
+    float anguloObjetivoMax = 1.5; // Grados de inclinación para avanzar (ajustar entre 0.8 y 1.5)
+    
+    // Si el robot está equilibrado, incrementamos suavemente el ángulo de avance
+    if (abs(rollFiltrado) < 15.0) {
+      if (anguloDeseado < anguloObjetivoMax) {
+        anguloDeseado += 0.001; // Incremento muy suave por ciclo (5ms)
+      }
+    } else {
+      anguloDeseado = 0.0;
+    }
+    
+    
+    //====================  LÓGICA DE CONTROL 2: IMU-MOTOR ====================
+    static double promedioPWM = 0;
+    double inputIMU = rollFiltrado;    //Medición del angulo roll del MPU6050 para el PID.
+    double factorAmortiguacion = 0.01;
+    double setpointIMU = anguloDeseado - (promedioPWM * factorAmortiguacion); // Factor de amortiguación
+    
+    double error = inputIMU - setpointIMU - 2.6;  //2.6 es el centro de masa del balancin
+
+    //Parte proporcional:
+    double kpIMU = 30;
+    double proporcional = kpIMU * error;
+
+    //Parte integral:
+    static double errorSum = 0;
+
+    //Acumulación del error por cada dt (5ms = 5000 microsegundos)
+    double kiIMU = 500;
+    errorSum += error * dt;
+    // Anti-Windup: limita la acumulación integral para evitar saturación
+    errorSum = constrain(errorSum, -150.0, 150.0); 
+
+    double integral = kiIMU * errorSum;
+
+    //Parte derivativa:
+    double kdIMU = 0.5;
+    double derivativo = kdIMU * giroX;
+
+    double outputIMU = proporcional + integral + derivativo;
+    // 2. Acotación de la salida
+    outputIMU = constrain(outputIMU, -255.0, 255.0);
+
+    // Leve compensación por esfuerzo para evitar embalamiento (feedback de PWM)
+    // Si los motores están empujando muy fuerte hacia adelante, reducimos un poco la inclinación
+    promedioPWM = (0.95 * promedioPWM) + (0.05 * outputIMU); 
+    
+     // ----- CORTE DE SEGURIDAD POR CAÍDA -----
+    bool robotCaido = false;
+    if (abs(rollFiltrado) > 40.0) { 
+      // Si el robot cae más de 40 grados, apaga todo
+      outputIMU = 0;     //señal = 0
+      errorSum = 0;      //Eliminar error
+      promedioPWM = 0;
+      anguloDeseado = 0.0;
+      robotCaido = true;
+    }
+
+    
+      //====================  ACTUACION  ====================
+      //Compensación de la zona muerta con el PWM mínimo útil.
+      int minPWMA = 10;
+      int minPWMB = 8;
+      float pwmUtilA = 0;
+      float pwmUtilB = 0;
+      float factorMotorB = 0.78; //Motor que gira más rápido
+
+      if (outputIMU > 0) {
+        //Reescalado de la zona muerta
+        pwmUtilA = map(outputIMU, 1,255, minPWMA, 255);
+        pwmUtilB = map(outputIMU, 1,255, minPWMB, 255) * factorMotorB;
+        //Corrección de la línea
+        pwmUtilA += outputLinea;
+        pwmUtilB -= outputLinea;
+      } else if (outputIMU < 0) {
+        //Reescalado de la zona muerta
+        pwmUtilA = map(outputIMU, -1,-255, -minPWMA, -255);
+        pwmUtilB = map(outputIMU, -1,-255, -minPWMB, -255) * factorMotorB;
+        //Corrección de la línea
+        pwmUtilA -= outputLinea;
+        pwmUtilB += outputLinea;
+      }else{
+        pwmUtilA = 0;
+        pwmUtilB = 0;
+      }
+      
+      //Limitar los valores de la variable
+      pwmUtilA = constrain(pwmUtilA, -255, 255);
+      pwmUtilB = constrain(pwmUtilB, -255, 255);
+      
+      //Rampa de aceleración
+      int paso = 25;  //25PWM/5ms = 5 PWM/ms
+      static int pwmActualA = 0;
+      static int pwmActualB = 0;
+      int pwmObjetivoA = pwmUtilA;
+      int pwmObjetivoB = pwmUtilB;
+
+    // ----- DECISIÓN FINAL SOBRE SI MOVER LOS MOTORES O NO -----
+    if(!robotCaido){
+      pwmActualA = rampaPWM(pwmActualA, pwmObjetivoA, paso);
+      pwmActualB = rampaPWM(pwmActualB, pwmObjetivoB, paso);
+
+      motorA.setSpeed(pwmActualA);
+      motorB.setSpeed(pwmActualB);
+    }
+    else{
+      //Si el robot está caido, apagar todo
+      pwmActualA = 0;
+      pwmActualB = 0;
+
+      motorA.setSpeed(0);
+      motorB.setSpeed(0);
+    }
+  }
+
+  //====================  BLUETOOTH IMU  ====================
+  static String comandoBT = "";
+
+  while (SerialBT.available()) {
+    char c = SerialBT.read();
+
+    if (c == '\n' || c == '\r') {
+      if (comandoBT.length() > 0) {
+        comandoBT.trim();
+
+        if (comandoBT.startsWith("kp:")) {
+          kpLineaBluetooth = comandoBT.substring(3).toFloat();
+        }
+        else if(comandoBT.startsWith("kd:")) {
+          kdLineaBluetooth = comandoBT.substring(3).toFloat();
+        }
+        
+        comandoBT = "";
+      }
+    } else {
+      comandoBT += c;
+      if (comandoBT.length() > 64) {
+        comandoBT = "";
+      }
+    }
+  }
+}
+
+//######################################################################
+//#####################  DEFINICION FUNCIONES  #########################
+//######################################################################
+//====================  MOTORES  ====================
+//FUNCION: Acelerar de manera controlada el pwm para motores
+//ENTRADA 1: pwm actual del motor
+//ENTRADA 2: pwm al que se quiere llegar
+//ENTRADA 3: aumento del pwm en cada ciclo
+//SALIDA: nuevo pwm actual
+int rampaPWM(int &pwmActual, int &pwmObjetivo, int paso){
+  int diferencia = pwmObjetivo - pwmActual;
+
+  bool cambioSentido = (pwmObjetivo > 0 && pwmActual < 0) || (pwmObjetivo < 0 && pwmActual > 0);
+  if (cambioSentido){
+    paso = paso/3;    //Relentizar paso
+  }
+
+  //ASIGNACIÓN DE PASO A LA SALIDA
+  if(diferencia > paso) pwmActual += paso;        //Si aún hay diferencia positiva, aumentar pwm
+  else if(diferencia < -paso) pwmActual -= paso;  //Si hay diferencia negativa, disminuir pwm
+  else pwmActual = pwmObjetivo;                   //Si la diferencia es muy pequeña, igualar al pwmObjetivo
+
+  //RECTIFICAR LÍMITES
+  pwmActual = constrain(pwmActual, -255, 255);
+
+  return pwmActual;
+}
+
+//====================  SENSOR INFRARROJO  ====================
+//FUNCIÓN: Convertir las lecturas analógicas del sensor a digitales (para mejor comprensión)
+//ENTRADAS: Pin de datos del sensor
+//SALIDAS: Un 0 si el fondo es blanco y un 1 si el fondo es negro.
+int convertirAColor(int pinAnalogico){
+  if(analogRead(pinAnalogico) > 3500){
+    return 1; //Color negro
+  }
+  else{
+    return 0; //Color blanco
+  }
+}
